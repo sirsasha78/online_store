@@ -6,8 +6,8 @@ from apps.accounts.managers import CustomUserManager
 
 
 ACCOUNT_TYPE_CHOICES = (
-    ("SELLER", "SELLER"),
-    ("BUYER", "BUYER"),
+    ("SELLER", "Продавец"),
+    ("BUYER", "Покупатель"),
 )
 
 
