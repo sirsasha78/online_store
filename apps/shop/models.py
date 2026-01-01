@@ -51,6 +51,14 @@ class Product(IsDeletedModel):
     price_current = models.DecimalField(
         max_digits=10, decimal_places=2, verbose_name="Текущая цена"
     )
+    category = models.ForeignKey(
+        Category,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="products",
+        verbose_name="Категория",
+    )
     in_stock = models.IntegerField(default=5, verbose_name="Количество товара")
     image1 = models.ImageField(
         upload_to="product_images/", verbose_name="Первое изображение"

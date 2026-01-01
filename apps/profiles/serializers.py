@@ -15,6 +15,11 @@ class ProfileSerializer(serializers.Serializer):
 
 
 class ShippingAddressSerializer(serializers.Serializer):
+    """Сериализатор для данных адреса доставки.
+    Преобразует данные адреса доставки в формат JSON и обратно.
+    Используется при создании, чтении и обновлении адресов доставки.
+    Обеспечивает валидацию полей и определяет правила сериализации."""
+
     id = serializers.UUIDField(read_only=True)
     full_name = serializers.CharField(max_length=255)
     email = serializers.EmailField()

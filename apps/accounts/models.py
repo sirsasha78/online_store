@@ -1,3 +1,4 @@
+import uuid
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 
@@ -68,3 +69,8 @@ class User(IsDeletedModel, AbstractUser):
         В данной реализации суперпользователь — это тот, у кого is_staff = True."""
 
         return self.is_staff
+
+    def save(self, *args, **kwargs):
+        if not self.username:
+            self.username = str(uuid.uuid4())[:30]
+        super().save(*args, **kwargs)

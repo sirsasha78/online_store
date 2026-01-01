@@ -1,4 +1,3 @@
-from encodings.punycode import T
 from uuid import UUID
 from django.http import HttpRequest
 from rest_framework.response import Response
