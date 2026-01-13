@@ -4,8 +4,14 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.shop.models import Category, Product
-from apps.shop.serializers import CategorySerializer, ProductSerializer
+from apps.shop.serializers import (
+    CategorySerializer,
+    ProductSerializer,
+    OrderItemSerializer,
+    ToggleCartItemSerializer,
+)
 from apps.sellers.models import Seller
+from apps.profiles.models import OrderItem, ShippingAddress, Order
 
 
 tags = ["Shop"]
@@ -160,3 +166,78 @@ class ProductView(APIView):
 
         serializer = self.serializer_class(product)
         return Response(serializer.data, status=200)
+
+
+class CartView(APIView):
+    """Представление для управления корзиной пользователя.
+    Позволяет:
+    - Получать список всех товаров, добавленных в корзину (не привязанных к заказу).
+    - Добавлять, обновлять или удалять товары в корзине с помощью POST-запроса.
+    Аутентифицированные пользователи работают с привязанной к ним корзиной.
+    Товары в корзине определяются как объекты `OrderItem`, у которых поле `order` равно `None`.
+    """
+
+    serializer_class = OrderItemSerializer
+
+    @extend_schema(
+        summary="Вывод товаров из корзины",
+        description="Возвращает все товары из корзины пользователя.",
+        tags=tags,
+    )
+    def get(self, request: HttpRequest, *args, **kwargs) -> Response:
+        """Обрабатывает GET-запрос для получения всех товаров из корзины текущего пользователя.
+        Выполняет выборку объектов `OrderItem`, связанных с текущим пользователем и не привязанных к заказу.
+        Использует `select_related` для оптимизации запросов к связанным объектам: продукт, продавец, пользователь продавца.
+        """
+
+        user = request.user
+        orderitems = OrderItem.objects.filter(user=user, order=None).select_related(
+            "product", "product__seller", "product__seller__user"
+        )
+        serializer = self.serializer_class(orderitems, many=True)
+        return Response(serializer.data)
+
+    @extend_schema(
+        summary="Переместить товар в корзину",
+        description="Позволяет пользователю или гостю добавлять/обновлять/удалять товар из корзины. Если количество равно 0, товар удаляется из корзины.",
+        request=ToggleCartItemSerializer,
+        tags=tags,
+    )
+    def post(self, request: HttpRequest, *args, **kwargs) -> Response:
+        """Обрабатывает POST-запрос для добавления, обновления или удаления товара в корзине.
+        Принимает слаг продукта и количество. На основе этих данных:
+        - Если товара ещё нет — создаётся новый `OrderItem`.
+        - Если есть — обновляется количество.
+        - Если количество равно 0 — товар удаляется из корзины."""
+
+        user = request.user
+        serializer = ToggleCartItemSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        quantity = data["quantity"]
+
+        product = Product.objects.select_related("seller", "seller__user").get_or_none(
+            slug=data["slug"]
+        )
+        if not product:
+            return Response({"message": "Продукта с таким слагом нет!"}, status=404)
+        orderitem, created = OrderItem.objects.update_or_create(
+            user=user, order=None, product=product, defaults={"quantity": quantity}
+        )
+        resp_message_substring = "Обновлен"
+        status_code = 200
+
+        if created:
+            status_code = 201
+            resp_message_substring = "Добавлен"
+        if orderitem.quantity == 0:
+            resp_message_substring = "Удален"
+            orderitem.delete()
+            data = None
+        if resp_message_substring != "Удален":
+            serializer = self.serializer_class(orderitem)
+            data = serializer.data
+        return Response(
+            data={"message": f"Товар {resp_message_substring}", "товар": data},
+            status=status_code,
+        )

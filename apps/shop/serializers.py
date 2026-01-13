@@ -57,3 +57,39 @@ class CreateProductSerializer(serializers.Serializer):
     image1 = serializers.ImageField()
     image2 = serializers.ImageField(required=False)
     image3 = serializers.ImageField(required=False)
+
+
+class OrderItemProductSerializer(serializers.Serializer):
+    """Сериализатор для представления данных продукта в составе заказа.
+    Преобразует данные продукта, входящего в заказ, в формат, пригодный для вывода.
+    Включает информацию о продавце, названии, уникальном идентификаторе (slug)
+    и итоговой стоимости продукта с учётом количества.
+    Используется для вложенного отображения товаров в деталях заказа."""
+
+    seller = SellerShopSerializer()
+    name = serializers.CharField()
+    slug = serializers.SlugField()
+    price = serializers.DecimalField(
+        max_digits=10, decimal_places=2, source="get_total"
+    )
+
+
+class OrderItemSerializer(serializers.Serializer):
+    """Сериализатор для представления элемента заказа.
+    Преобразует данные об отдельном товаре в заказе в формат, пригодный для вывода.
+    Включает информацию о продукте, количество единиц и итоговую стоимость позиции."""
+
+    product = OrderItemProductSerializer()
+    quantity = serializers.IntegerField()
+    total = serializers.DecimalField(
+        max_digits=10, decimal_places=2, source="get_total"
+    )
+
+
+class ToggleCartItemSerializer(serializers.Serializer):
+    """Сериализатор для управления элементом корзины.
+    Предназначен для валидации данных при добавлении, изменении или удалении
+    товара в корзине пользователя."""
+
+    slug = serializers.SlugField()
+    quantity = serializers.IntegerField(min_value=0)
