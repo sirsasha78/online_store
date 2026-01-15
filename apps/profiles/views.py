@@ -9,6 +9,7 @@ from apps.common.utils import set_dict_attr
 from apps.profiles.serializers import ProfileSerializer, ShippingAddressSerializer
 from apps.profiles.models import ShippingAddress, Order, OrderItem
 from apps.shop.serializers import OrderSerializer, CheckItemOrderSerializer
+from apps.common.permissions import IsOwner
 
 
 tags = ["Profiles"]
@@ -21,6 +22,7 @@ class ProfileView(APIView):
     только авторизованным пользователям (проверка осуществляется
     на уровне permission_classes, подразумевается её наличие)."""
 
+    permission_classes = [IsOwner]
     serializer_class = ProfileSerializer
 
     @extend_schema(
@@ -76,6 +78,7 @@ class ShippingAddressesView(APIView):
     - Получение списка всех адресов доставки текущего пользователя.
     - Создание нового адреса доставки."""
 
+    permission_classes = [IsOwner]
     serializer_class = ShippingAddressSerializer
 
     @extend_schema(
@@ -114,6 +117,7 @@ class ShippingAddressViewID(APIView):
     для адреса доставки, связанного с аутентифицированным пользователем.
     Доступ к адресу возможен только по его уникальному идентификатору (UUID)."""
 
+    permission_classes = [IsOwner]
     serializer_class = ShippingAddressSerializer
 
     def get_object(self, user, shipping_id):
@@ -134,6 +138,7 @@ class ShippingAddressViewID(APIView):
         )
         if shipping_address is None:
             raise NotFound({"message": "Адреса доставки не существует!"}, code=404)
+        self.check_object_permissions(self.request, shipping_address)
 
         return shipping_address
 
@@ -193,6 +198,7 @@ class OrdersView(APIView):
     - Предварительно загружает позиции заказов и связанные с ними товары (prefetch_related).
     """
 
+    permission_classes = [IsOwner]
     serializer_class = OrderSerializer
 
     @extend_schema(
@@ -222,6 +228,7 @@ class OrderItemsView(APIView):
     которому принадлежит заказ. Используется для отображения содержимого заказа
     после его оформления или при отслеживании статуса."""
 
+    permission_classes = [IsOwner]
     serializer_class = CheckItemOrderSerializer
 
     @extend_schema(

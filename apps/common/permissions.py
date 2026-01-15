@@ -1,0 +1,29 @@
+from django.http import HttpRequest
+from rest_framework import permissions
+from rest_framework.views import View
+
+from typing import Any
+
+
+class IsOwner(permissions.BasePermission):
+    """Пользовательское разрешение, разрешающее доступ только владельцам объекта или персоналу.
+    Проверяет:
+    - Аутентификацию пользователя на уровне запроса (has_permission).
+    - Принадлежность объекта пользователю или наличие прав персонала на уровне объекта (has_object_permission).
+    Используется для ограничения доступа к объектам таким образом, чтобы:
+    - Только аутентифицированные пользователи могли выполнять запросы.
+    - Пользователь мог взаимодействовать только со своими объектами.
+    - Администраторы (staff) имели полный доступ к любым объектам."""
+
+    def has_permission(self, request: HttpRequest, view: View) -> bool:
+        """Проверяет, имеет ли пользователь право на выполнение запроса."""
+
+        if request.user.is_authenticated:
+            return True
+        return False
+
+    def has_object_permission(self, request: HttpRequest, view: View, obj: Any) -> bool:
+        """Проверяет, имеет ли пользователь право на взаимодействие с конкретным объектом.
+        Метод вызывается при попытке доступа к конкретному объекту (например, при редактировании или удалении).
+        """
+        return obj.user == request.user or request.user.is_staff
