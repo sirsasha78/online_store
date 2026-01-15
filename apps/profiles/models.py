@@ -1,3 +1,4 @@
+from decimal import Decimal
 from django.db import models
 
 from apps.accounts.models import User
@@ -99,6 +100,26 @@ class Order(BaseModel):
             self.tx_ref = generate_unique_code(Order, "tx_ref")
         super().save(*args, **kwargs)
 
+    @property
+    def get_cart_subtotal(self) -> Decimal:
+        """Вычисляет общую стоимость всех позиций в заказе.
+        Суммирует итоговые стоимости всех объектов OrderItem, связанных с этим заказом
+        через обратную связь 'orderitems'."""
+
+        orderitems = self.orderitems.all()
+        total = sum([item.get_total for item in orderitems])
+        return total
+
+    @property
+    def get_cart_total(self) -> Decimal:
+        """Возвращает итоговую стоимость заказа.
+        На текущий момент совпадает с подытогом (get_cart_subtotal), но метод
+        может быть расширен в будущем для включения стоимости доставки, налогов
+        или скидок."""
+
+        total = self.get_cart_subtotal
+        return total
+
 
 class OrderItem(BaseModel):
     """Модель позиции в заказе.
@@ -126,7 +147,7 @@ class OrderItem(BaseModel):
     quantity = models.PositiveIntegerField(default=1, verbose_name="Количество")
 
     @property
-    def get_total(self):
+    def get_total(self) -> Decimal:
         """Возвращает общую стоимость позиции в заказе."""
 
         return self.product.price_current * self.quantity

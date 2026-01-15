@@ -1,4 +1,7 @@
 from rest_framework import serializers
+from drf_spectacular.utils import extend_schema_field
+
+from apps.profiles.serializers import ShippingAddressSerializer
 
 
 class CategorySerializer(serializers.Serializer):
@@ -70,7 +73,7 @@ class OrderItemProductSerializer(serializers.Serializer):
     name = serializers.CharField()
     slug = serializers.SlugField()
     price = serializers.DecimalField(
-        max_digits=10, decimal_places=2, source="get_total"
+        max_digits=10, decimal_places=2, source="price_current"
     )
 
 
@@ -93,3 +96,42 @@ class ToggleCartItemSerializer(serializers.Serializer):
 
     slug = serializers.SlugField()
     quantity = serializers.IntegerField(min_value=0)
+
+
+class CheckoutSerializer(serializers.Serializer):
+    """Сериализатор для обработки данных при оформлении заказа.
+    Используется для валидации и десериализации данных, переданных при запросе
+    на оформление заказа. Требует идентификатор способа доставки в виде UUID."""
+
+    shipping_id = serializers.UUIDField()
+
+
+class OrderSerializer(serializers.Serializer):
+    """Сериализатор для представления данных заказа.
+    Преобразует данные модели Order в формат JSON для вывода в API.
+    Включает вложенные данные о пользователе, адресе доставки и суммах заказа.
+    Используется для отображения информации о заказе, включая статусы доставки и оплаты,
+    контактные данные пользователя и стоимость заказа."""
+
+    tx_ref = serializers.CharField()
+    first_name = serializers.CharField(source="user.first_name")
+    last_name = serializers.CharField(source="user.last_name")
+    email = serializers.EmailField(source="user.email")
+    delivery_status = serializers.CharField()
+    payment_status = serializers.CharField()
+    date_delivered = serializers.DateTimeField()
+    shipping_details = serializers.SerializerMethodField()
+    subtotal = serializers.DecimalField(
+        max_digits=100, decimal_places=2, source="get_cart_subtotal"
+    )
+    total = serializers.DecimalField(
+        max_digits=100, decimal_places=2, source="get_cart_total"
+    )
+
+    @extend_schema_field(ShippingAddressSerializer)
+    def get_shipping_details(self, obj):
+        """Возвращает сериализованные данные адреса доставки.
+        Метод использует ShippingAddressSerializer для преобразования объекта заказа
+        в словарь с деталями адреса доставки."""
+
+        return ShippingAddressSerializer(obj).data

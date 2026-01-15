@@ -9,6 +9,8 @@ from apps.shop.serializers import (
     ProductSerializer,
     OrderItemSerializer,
     ToggleCartItemSerializer,
+    CheckoutSerializer,
+    OrderSerializer,
 )
 from apps.sellers.models import Seller
 from apps.profiles.models import OrderItem, ShippingAddress, Order
@@ -240,4 +242,63 @@ class CartView(APIView):
         return Response(
             data={"message": f"Товар {resp_message_substring}", "товар": data},
             status=status_code,
+        )
+
+
+class CheckoutView(APIView):
+    """Представление для оформления заказа из корзины пользователя.
+    Позволяет аутентифицированному пользователю создать заказ на основе товаров,
+    находящихся в его корзине (объекты `OrderItem` с `order=None`). При успешном
+    оформлении заказа все элементы корзины связываются с новым заказом, а данные
+    доставки копируются из выбранного адреса."""
+
+    serializer_class = CheckoutSerializer
+
+    @extend_schema(
+        summary="Проверка",
+        description="Позволяет пользователю создать заказ, с помощью которого затем можно произвести оплату.",
+        request=CheckoutSerializer,
+        tags=tags,
+    )
+    def post(self, request: HttpRequest, *args, **kwargs) -> Response:
+        """Обрабатывает POST-запрос для создания заказа из корзины пользователя."""
+
+        user = request.user
+        orderitems = OrderItem.objects.filter(user=user, order=None)
+        if not orderitems.exists():
+            return Response({"message": "В корзине нет товаров"}, status=404)
+
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        shipping_id = data.get("shipping_id")
+        shipping = ShippingAddress.objects.get_or_none(id=shipping_id)
+        if not shipping:
+            return Response(
+                {"message": "Нет адреса доставки с таким идентификатором"}, status=404
+            )
+
+        fields_to_update = (
+            "full_name",
+            "email",
+            "phone",
+            "address",
+            "city",
+            "country",
+            "zipcode",
+        )
+        data = {}
+        for field in fields_to_update:
+            value = getattr(shipping, field)
+            data[field] = value
+
+        order = Order.objects.create(user=user, **data)
+        orderitems.update(order=order)
+        serializer = OrderSerializer(order)
+        return Response(
+            data={
+                "message": "Оформление заказа прошло успешно",
+                "заказ": serializer.data,
+            },
+            status=201,
         )

@@ -6,6 +6,8 @@ from apps.shop.views import (
     ProductsView,
     ProductsByCategoryView,
     ProductsBySellerView,
+    CartView,
+    CheckoutView,
 )
 
 
@@ -23,4 +25,6 @@ urlpatterns = [
     ),
     path("products/", ProductsView.as_view(), name="products_all"),
     path("products/<slug:slug>/", ProductView.as_view(), name="product_detail"),
+    path("cart/", CartView.as_view(), name="cart"),
+    path("checkout/", CheckoutView.as_view(), name="checkout"),
 ]
