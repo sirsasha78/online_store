@@ -135,3 +135,13 @@ class OrderSerializer(serializers.Serializer):
         в словарь с деталями адреса доставки."""
 
         return ShippingAddressSerializer(obj).data
+
+
+class CheckItemOrderSerializer(serializers.Serializer):
+    """Сериализатор для представления элемента заказа в детализированной информации о заказе.
+    Используется для сериализации данных о товаре, входящем в состав заказа, включая
+    информацию о продукте, количество единиц и общую стоимость позиции."""
+
+    product = ProductSerializer()
+    quantity = serializers.IntegerField()
+    total = serializers.FloatField(source="get_total")

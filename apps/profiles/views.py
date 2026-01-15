@@ -7,7 +7,8 @@ from drf_spectacular.utils import extend_schema
 
 from apps.common.utils import set_dict_attr
 from apps.profiles.serializers import ProfileSerializer, ShippingAddressSerializer
-from apps.profiles.models import ShippingAddress
+from apps.profiles.models import ShippingAddress, Order, OrderItem
+from apps.shop.serializers import OrderSerializer, CheckItemOrderSerializer
 
 
 tags = ["Profiles"]
@@ -27,7 +28,7 @@ class ProfileView(APIView):
         description="""Эта конечная точка позволяет пользователю получить доступ к своему профилю.""",
         tags=tags,
     )
-    def get(self, request: HttpRequest) -> Response:
+    def get(self, request: HttpRequest, *args, **kwargs) -> Response:
         """Возвращает данные профиля текущего пользователя."""
 
         user = request.user
@@ -40,7 +41,7 @@ class ProfileView(APIView):
         tags=tags,
         request={"multipart/form-data": serializer_class},
     )
-    def put(self, request: HttpRequest) -> Response:
+    def put(self, request: HttpRequest, *args, **kwargs) -> Response:
         """Полностью обновляет данные профиля пользователя.
         Принимает данные из тела запроса, валидирует их с помощью
         ProfileSerializer, и при успешной валидации обновляет
@@ -60,7 +61,7 @@ class ProfileView(APIView):
         description="""Эта конечная точка позволяет пользователю деактивировать свою учетную запись.""",
         tags=tags,
     )
-    def delete(self, request: HttpRequest) -> Response:
+    def delete(self, request: HttpRequest, *args, **kwargs) -> Response:
         """Деактивирует учётную запись текущего пользователя."""
 
         user = request.user
@@ -82,7 +83,7 @@ class ShippingAddressesView(APIView):
         description="""Эта конечная точка возвращает все адреса доставки, связанные с пользователем.""",
         tags=tags,
     )
-    def get(self, request: HttpRequest) -> Response:
+    def get(self, request: HttpRequest, *args, **kwargs) -> Response:
         """Возвращает список всех адресов доставки, привязанных к текущему пользователю."""
 
         user = request.user
@@ -95,7 +96,7 @@ class ShippingAddressesView(APIView):
         description="""Эта конечная точка позволяет пользователю создать адрес доставки.""",
         tags=tags,
     )
-    def post(self, request: HttpRequest) -> Response:
+    def post(self, request: HttpRequest, *args, **kwargs) -> Response:
         """Создаёт новый адрес доставки для текущего пользователя."""
 
         user = request.user
@@ -179,3 +180,64 @@ class ShippingAddressViewID(APIView):
         shipping_address = self.get_object(user, kwargs["id"])
         shipping_address.delete()
         return Response({"message": "Адрес доставки успешно удален"}, status=200)
+
+
+class OrdersView(APIView):
+    """Представление для получения списка заказов пользователя.
+    Предоставляет API-эндпоинт, который возвращает все заказы,
+    оформленные текущим аутентифицированным пользователем.
+    Результат отсортирован по дате создания в порядке убывания
+    (сначала самые новые заказы).
+    Поддерживает оптимизированный запрос к базе данных:
+    - Подгружает связанный объект пользователя (select_related).
+    - Предварительно загружает позиции заказов и связанные с ними товары (prefetch_related).
+    """
+
+    serializer_class = OrderSerializer
+
+    @extend_schema(
+        summary="Получение заказов",
+        description="Возвращает все заказы для конкретного пользователя.",
+        operation_id="orders_view",
+        tags=tags,
+    )
+    def get(self, request: HttpRequest, *args, **kwargs) -> Response:
+        """Обрабатывает HTTP GET-запрос для получения списка всех заказов пользователя."""
+
+        user = request.user
+        orders = (
+            Order.objects.filter(user=user)
+            .select_related("user")
+            .prefetch_related("orderitems", "orderitems__product")
+            .order_by("-created_at")
+        )
+        serializer = self.serializer_class(orders, many=True)
+        return Response(serializer.data, status=200)
+
+
+class OrderItemsView(APIView):
+    """Представление для получения списка товаров, входящих в состав конкретного заказа.
+    Обрабатывает GET-запрос и возвращает все элементы заказа (товары с количеством),
+    связанные с указанным заказом. Доступ разрешён только авторизованному пользователю,
+    которому принадлежит заказ. Используется для отображения содержимого заказа
+    после его оформления или при отслеживании статуса."""
+
+    serializer_class = CheckItemOrderSerializer
+
+    @extend_schema(
+        summary="Товары внутри заказа",
+        description="Возвращает список элементов конкретного заказа",
+        operation_id="order_items_view",
+        tags=tags,
+    )
+    def get(self, request: HttpRequest, *args, **kwargs) -> Response:
+        """Обрабатывает GET-запрос для получения всех товаров, входящих в заказ."""
+
+        order = Order.objects.get_or_none(tx_ref=kwargs["tx_ref"])
+        if not order or order.user != request.user:
+            return Response({"message": "Заказа не существует!"}, status=404)
+        order_items = OrderItem.objects.filter(order=order).select_related(
+            "product", "product__seller", "product__seller__user"
+        )
+        serializer = self.serializer_class(order_items, many=True)
+        return Response(serializer.data, status=200)
