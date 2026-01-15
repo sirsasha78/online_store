@@ -6,8 +6,14 @@ from rest_framework.views import APIView
 from apps.sellers.models import Seller
 from apps.sellers.serializers import SellerSerializer
 from apps.shop.models import Category, Product
-from apps.shop.serializers import ProductSerializer, CreateProductSerializer
+from apps.shop.serializers import (
+    ProductSerializer,
+    CreateProductSerializer,
+    OrderSerializer,
+    CheckItemOrderSerializer,
+)
 from apps.common.utils import set_dict_attr
+from apps.profiles.models import Order, OrderItem
 
 
 tags = ["Sellers"]
@@ -180,3 +186,61 @@ class SellerProductView(APIView):
 
         product.delete()
         return Response({"message": "Товар успешно удален"}, status=202)
+
+
+class SellerOrdersView(APIView):
+    """Представление для получения списка заказов, связанных с товарами продавца.
+    Предоставляет API-эндпоинт, который возвращает все заказы,
+    содержащие товары, принадлежащие текущему продавцу. Доступ разрешён только
+    авторизованным пользователям с профилем продавца. Результаты отсортированы
+    по дате создания заказа в порядке убывания (сначала новые).
+    Заказы включаются в выборку, если хотя бы один из товаров в заказе
+    принадлежит продавцу. Используется `distinct()`, чтобы избежать дублирования
+    заказов при наличии нескольких товаров от одного продавца в одном заказе."""
+
+    serializer_class = OrderSerializer
+
+    @extend_schema(
+        summary="Выбор заказов продавца",
+        description="Возвращает все заказы для конкретного продавца.",
+        operation_id="seller_orders_view",
+        tags=tags,
+    )
+    def get(self, request: HttpRequest, *args, **kwargs) -> Response:
+        """Обрабатывает GET-запрос для получения списка заказов продавца."""
+
+        seller = request.user.seller
+        orders = (
+            Order.objects.filter(orderitems__product__seller=seller)
+            .distinct()
+            .order_by("-created_at")
+        )
+        serializer = self.serializer_class(orders, many=True)
+        return Response(serializer.data, status=200)
+
+
+class SellerOrderItemsView(APIView):
+    """Представление для получения товаров заказа, принадлежащих конкретному продавцу.
+    Данный эндпоинт позволяет продавцу получить список позиций из указанного заказа,
+    в которых участвуют товары, принадлежащие его магазину. Доступ разрешён только
+    авторизованным пользователям с профилем продавца. Если заказ не существует
+    или продавец не имеет к нему отношения, возвращается ошибка 404."""
+
+    serializer_class = CheckItemOrderSerializer
+
+    @extend_schema(
+        summary="Товары продавца",
+        description="Возвращает все заказанные товары конкретного продавца.",
+        operation_id="seller_order_items_view",
+        tags=tags,
+    )
+    def get(self, request: HttpRequest, *args, **kwargs) -> Response:
+        """Обрабатывает GET-запрос для получения элементов заказа, связанных с продавцом."""
+
+        seller = request.user.seller
+        order = Order.objects.get_or_none(tx_ref=kwargs["tx_ref"])
+        if not order:
+            return Response({"message": "Заказа не существует!"}, status=404)
+        order_items = OrderItem.objects.filter(order=order, product__seller=seller)
+        serializer = self.serializer_class(order_items, many=True)
+        return Response(serializer.data, status=200)
