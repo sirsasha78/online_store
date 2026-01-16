@@ -2,6 +2,7 @@ from django.http import HttpRequest
 from drf_spectacular.utils import extend_schema
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework import permissions
 
 from apps.sellers.models import Seller
 from apps.sellers.serializers import SellerSerializer
@@ -14,6 +15,7 @@ from apps.shop.serializers import (
 )
 from apps.common.utils import set_dict_attr
 from apps.profiles.models import Order, OrderItem
+from apps.common.permissions import IsSeller
 
 
 tags = ["Sellers"]
@@ -26,6 +28,7 @@ class SellersView(APIView):
     поле `account_type` пользователя автоматически устанавливается в значение 'SELLER'.
     """
 
+    permission_classes = [permissions.IsAuthenticated]
     serializer_class = SellerSerializer
 
     @extend_schema(
@@ -54,6 +57,7 @@ class SellerProductsView(APIView):
     Доступ к эндпоинтам разрешён только подтвержденным продавцам
     (пользователям с ролью продавца и статусом is_approved=True)."""
 
+    permission_classes = [IsSeller]
     serializer_class = ProductSerializer
 
     @extend_schema(
@@ -121,6 +125,7 @@ class SellerProductView(APIView):
     (пользователям с подтверждённым статусом продавца).
     Операции выполняются по уникальному идентификатору продукта — slug."""
 
+    permission_classes = [IsSeller]
     serializer_class = CreateProductSerializer
 
     def get_object(self, slug: str):
@@ -198,6 +203,7 @@ class SellerOrdersView(APIView):
     принадлежит продавцу. Используется `distinct()`, чтобы избежать дублирования
     заказов при наличии нескольких товаров от одного продавца в одном заказе."""
 
+    permission_classes = [IsSeller]
     serializer_class = OrderSerializer
 
     @extend_schema(
@@ -226,6 +232,7 @@ class SellerOrderItemsView(APIView):
     авторизованным пользователям с профилем продавца. Если заказ не существует
     или продавец не имеет к нему отношения, возвращается ошибка 404."""
 
+    permission_classes = [IsSeller]
     serializer_class = CheckItemOrderSerializer
 
     @extend_schema(
