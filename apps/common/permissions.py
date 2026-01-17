@@ -52,3 +52,21 @@ class IsSeller(permissions.BasePermission):
         """Проверяет, имеет ли пользователь право на взаимодействие с конкретным объектом."""
 
         return obj.seller == request.user.seller or request.user.is_staff
+
+
+class IsAdminOrReadOnly(permissions.BasePermission):
+    """Пользовательское разрешение, позволяющее доступ на чтение всем,
+    но на запись — только администраторам.
+    Разрешает выполнение безопасных HTTP-методов (GET, HEAD, OPTIONS)
+    любым пользователям (включая неаутентифицированных).
+    Для небезопасных методов (POST, PUT, PATCH, DELETE) требует,
+    чтобы пользователь был аутентифицирован и являлся администратором (staff).
+    Применяется для представлений, где данные должны быть защищены
+    от изменений, но доступны для просмотра всем."""
+
+    def has_permission(self, request: HttpRequest, view: View) -> bool:
+        """Проверяет, имеет ли пользователь право на выполнение запроса."""
+
+        if request.method in permissions.SAFE_METHODS:
+            return True
+        return bool(request.user and request.user.is_staff)

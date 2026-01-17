@@ -2,6 +2,7 @@ from django.http import HttpRequest
 from drf_spectacular.utils import extend_schema
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework import permissions
 
 from apps.shop.models import Category, Product
 from apps.shop.serializers import (
@@ -14,6 +15,7 @@ from apps.shop.serializers import (
 )
 from apps.sellers.models import Seller
 from apps.profiles.models import OrderItem, ShippingAddress, Order
+from apps.common.permissions import IsAdminOrReadOnly
 
 
 tags = ["Shop"]
@@ -25,6 +27,7 @@ class CategoriesView(APIView):
     - Получения списка всех категорий.
     - Создания новой категории."""
 
+    permission_classes = [IsAdminOrReadOnly]
     serializer_class = CategorySerializer
 
     @extend_schema(
@@ -179,6 +182,7 @@ class CartView(APIView):
     Товары в корзине определяются как объекты `OrderItem`, у которых поле `order` равно `None`.
     """
 
+    permission_classes = [permissions.IsAuthenticated]
     serializer_class = OrderItemSerializer
 
     @extend_schema(
@@ -252,6 +256,7 @@ class CheckoutView(APIView):
     оформлении заказа все элементы корзины связываются с новым заказом, а данные
     доставки копируются из выбранного адреса."""
 
+    permission_classes = [permissions.IsAuthenticated]
     serializer_class = CheckoutSerializer
 
     @extend_schema(
