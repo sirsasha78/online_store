@@ -1,8 +1,9 @@
 from django.http import HttpRequest
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework import permissions
+from rest_framework import status
 
 from apps.shop.models import Category, Product
 from apps.shop.serializers import (
@@ -67,6 +68,7 @@ class ProductsByCategoryView(APIView):
     относящиеся к категории с указанным slug.
     В случае, если категория не найдена, возвращается ошибка 404."""
 
+    permission_classes = [permissions.AllowAny]
     serializer_class = ProductSerializer
 
     @extend_schema(
@@ -96,6 +98,7 @@ class ProductsView(APIView):
     Использует оптимизированный запрос к базе данных с `select_related`
     для уменьшения количества запросов."""
 
+    permission_classes = [permissions.AllowAny]
     serializer_class = ProductSerializer
 
     @extend_schema(
@@ -103,13 +106,52 @@ class ProductsView(APIView):
         summary="Все товары",
         description="Этот эндопоинт возвращает все продукты.",
         tags=tags,
+        parameters=[
+            OpenApiParameter(
+                name="max_price",
+                description="Фильтровать товары по максимальной текущей цене",
+                required=False,
+                type=OpenApiTypes.INT,
+            ),
+            OpenApiParameter(
+                name="min_price",
+                description="Фильтровать товары по минимальной текущей цене",
+                required=False,
+                type=OpenApiTypes.INT,
+            ),
+        ],
     )
     def get(self, request: HttpRequest, *args, **kwargs) -> Response:
-        """Обрабатывает GET-запрос для получения списка всех продуктов."""
+        """Обрабатывает GET-запрос для получения списка продуктов с фильтрацией по цене."""
 
         products = Product.objects.select_related(
             "category", "seller", "seller__user"
         ).all()
+
+        max_price_str = request.GET.get("max_price")
+        min_price_str = request.GET.get("min_price")
+
+        try:
+            max_price = int(max_price_str) if max_price_str else None
+            min_price = int(min_price_str) if min_price_str else None
+        except (ValueError, TypeError):
+            return Response(
+                {"message": "min_price и max_price должны быть целыми числами"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if max_price is not None and min_price is not None:
+            if max_price <= min_price:
+                return Response(
+                    {"message": "Максимальная цена должна быть больше минимальной"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        if max_price is not None:
+            products = products.filter(price_current__lte=max_price)
+        if min_price is not None:
+            products = products.filter(price_current__gte=min_price)
+
         serializer = self.serializer_class(products, many=True)
         return Response(serializer.data, status=200)
 
@@ -121,6 +163,7 @@ class ProductsBySellerView(APIView):
     информацию о товарах с предзагрузкой связанных объектов: категория, продавец,
     а также пользователь, связанный с продавцом."""
 
+    permission_classes = [permissions.AllowAny]
     serializer_class = ProductSerializer
 
     @extend_schema(
@@ -148,6 +191,7 @@ class ProductView(APIView):
     по его уникальному идентификатору в виде slug.
     Доступен для всех пользователей (включая неаутентифицированных)."""
 
+    permission_classes = [permissions.AllowAny]
     serializer_class = ProductSerializer
 
     def get_object(self, slug: str) -> Product | None:
