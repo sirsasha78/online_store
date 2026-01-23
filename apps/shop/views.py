@@ -5,6 +5,7 @@ from rest_framework.views import APIView
 from rest_framework import permissions
 from rest_framework import status
 
+
 from apps.shop.models import Category, Product
 from apps.shop.serializers import (
     CategorySerializer,
@@ -17,6 +18,8 @@ from apps.shop.serializers import (
 from apps.sellers.models import Seller
 from apps.profiles.models import OrderItem, ShippingAddress, Order
 from apps.common.permissions import IsAdminOrReadOnly
+from apps.shop.filters import ProductFilter
+from apps.shop.schema_examples import PRODUCT_PARAM_EXAMPLE
 
 
 tags = ["Shop"]
@@ -106,20 +109,7 @@ class ProductsView(APIView):
         summary="Все товары",
         description="Этот эндопоинт возвращает все продукты.",
         tags=tags,
-        parameters=[
-            OpenApiParameter(
-                name="max_price",
-                description="Фильтровать товары по максимальной текущей цене",
-                required=False,
-                type=OpenApiTypes.INT,
-            ),
-            OpenApiParameter(
-                name="min_price",
-                description="Фильтровать товары по минимальной текущей цене",
-                required=False,
-                type=OpenApiTypes.INT,
-            ),
-        ],
+        parameters=PRODUCT_PARAM_EXAMPLE,
     )
     def get(self, request: HttpRequest, *args, **kwargs) -> Response:
         """Обрабатывает GET-запрос для получения списка продуктов с фильтрацией по цене."""
@@ -127,33 +117,13 @@ class ProductsView(APIView):
         products = Product.objects.select_related(
             "category", "seller", "seller__user"
         ).all()
-
-        max_price_str = request.GET.get("max_price")
-        min_price_str = request.GET.get("min_price")
-
-        try:
-            max_price = int(max_price_str) if max_price_str else None
-            min_price = int(min_price_str) if min_price_str else None
-        except (ValueError, TypeError):
-            return Response(
-                {"message": "min_price и max_price должны быть целыми числами"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        if max_price is not None and min_price is not None:
-            if max_price <= min_price:
-                return Response(
-                    {"message": "Максимальная цена должна быть больше минимальной"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-        if max_price is not None:
-            products = products.filter(price_current__lte=max_price)
-        if min_price is not None:
-            products = products.filter(price_current__gte=min_price)
-
-        serializer = self.serializer_class(products, many=True)
-        return Response(serializer.data, status=200)
+        filterset = ProductFilter(request.query_params, queryset=products)
+        if filterset.is_valid():
+            queryset = filterset.qs
+            serializer = self.serializer_class(queryset, many=True)
+            return Response(serializer.data)
+        else:
+            return Response(filterset.errors, status=400)
 
 
 class ProductsBySellerView(APIView):
