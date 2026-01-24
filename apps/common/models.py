@@ -35,6 +35,7 @@ class IsDeletedModel(BaseModel):
     class Meta:
         """Метакласс, указывающий, что данная модель является абстрактной."""
 
+        ordering = ["id"]
         abstract = True
 
     def delete(self, *args, **kwargs):

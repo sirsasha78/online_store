@@ -20,6 +20,7 @@ from apps.profiles.models import OrderItem, ShippingAddress, Order
 from apps.common.permissions import IsAdminOrReadOnly
 from apps.shop.filters import ProductFilter
 from apps.shop.schema_examples import PRODUCT_PARAM_EXAMPLE
+from apps.common.paginations import CustomPagination
 
 
 tags = ["Shop"]
@@ -95,14 +96,17 @@ class ProductsByCategoryView(APIView):
 
 
 class ProductsView(APIView):
-    """Представление для отображения списка всех продуктов.
-    Обрабатывает GET-запросы и возвращает список всех доступных товаров
-    с информацией о категории, продавце и связанных данных.
-    Использует оптимизированный запрос к базе данных с `select_related`
-    для уменьшения количества запросов."""
+    """Представление для отображения списка всех продуктов с возможностью фильтрации и пагинации.
+    Данный эндпоинт предоставляет доступ к списку продуктов с поддержкой:
+    - Фильтрации по различным параметрам (например, по цене),
+    - Пагинации результатов,
+    - Оптимизированных запросов к базе данных с использованием select_related.
+    Доступ к этому представлению разрешён всем пользователям, включая неаутентифицированных.
+    """
 
     permission_classes = [permissions.AllowAny]
     serializer_class = ProductSerializer
+    pagination_class = CustomPagination
 
     @extend_schema(
         operation_id="all_products",
@@ -112,7 +116,7 @@ class ProductsView(APIView):
         parameters=PRODUCT_PARAM_EXAMPLE,
     )
     def get(self, request: HttpRequest, *args, **kwargs) -> Response:
-        """Обрабатывает GET-запрос для получения списка продуктов с фильтрацией по цене."""
+        """Обрабатывает HTTP GET-запрос для получения списка продуктов с фильтрацией."""
 
         products = Product.objects.select_related(
             "category", "seller", "seller__user"
@@ -120,8 +124,10 @@ class ProductsView(APIView):
         filterset = ProductFilter(request.query_params, queryset=products)
         if filterset.is_valid():
             queryset = filterset.qs
-            serializer = self.serializer_class(queryset, many=True)
-            return Response(serializer.data)
+            paginator = self.pagination_class()
+            paginated_queryset = paginator.paginate_queryset(queryset, request)
+            serializer = self.serializer_class(paginated_queryset, many=True)
+            return paginator.get_paginated_response(serializer.data)
         else:
             return Response(filterset.errors, status=400)
 
