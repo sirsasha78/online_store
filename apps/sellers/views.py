@@ -1,5 +1,5 @@
 from django.http import HttpRequest
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework import permissions
@@ -16,6 +16,8 @@ from apps.shop.serializers import (
 from apps.common.utils import set_dict_attr
 from apps.profiles.models import Order, OrderItem
 from apps.common.permissions import IsSeller
+from apps.common.paginations import CustomPagination
+from core import settings
 
 
 tags = ["Sellers"]
@@ -59,11 +61,20 @@ class SellerProductsView(APIView):
 
     permission_classes = [IsSeller]
     serializer_class = ProductSerializer
+    pagination_class = CustomPagination
 
     @extend_schema(
         summary="Возвращает список продуктов продавца",
         description="Возвращает все товары от продавца. Товары могут быть отфильтрованы по названию, размеру или цвету.",
         tags=tags,
+        parameters=[
+            OpenApiParameter(
+                name="page_size",
+                description=f"Количество элементов на странице, которое вы хотите отобразить. По умолчанию используется {settings.REST_FRAMEWORK["PAGE_SIZE"]}",
+                required=False,
+                type=OpenApiTypes.INT,
+            ),
+        ],
     )
     def get(self, request: HttpRequest, *args, **kwargs) -> Response:
         """Обрабатывает GET-запрос для получения списка товаров продавца.
@@ -79,8 +90,11 @@ class SellerProductsView(APIView):
         products = Product.objects.select_related(
             "category", "seller", "seller__user"
         ).filter(seller=seller)
-        serializer = self.serializer_class(products, many=True)
-        return Response(serializer.data, status=200)
+
+        paginator = self.pagination_class()
+        paginated_queryset = paginator.paginate_queryset(products, request)
+        serializer = self.serializer_class(paginated_queryset, many=True)
+        return paginator.get_paginated_response(serializer.data)
 
     @extend_schema(
         summary="Создание товара",
@@ -205,12 +219,21 @@ class SellerOrdersView(APIView):
 
     permission_classes = [IsSeller]
     serializer_class = OrderSerializer
+    pagination_class = CustomPagination
 
     @extend_schema(
         summary="Выбор заказов продавца",
         description="Возвращает все заказы для конкретного продавца.",
         operation_id="seller_orders_view",
         tags=tags,
+        parameters=[
+            OpenApiParameter(
+                name="page_size",
+                description=f"Количество элементов на странице, которое вы хотите отобразить. По умолчанию используется {settings.REST_FRAMEWORK["PAGE_SIZE"]}",
+                required=False,
+                type=OpenApiTypes.INT,
+            ),
+        ],
     )
     def get(self, request: HttpRequest, *args, **kwargs) -> Response:
         """Обрабатывает GET-запрос для получения списка заказов продавца."""
@@ -221,8 +244,11 @@ class SellerOrdersView(APIView):
             .distinct()
             .order_by("-created_at")
         )
-        serializer = self.serializer_class(orders, many=True)
-        return Response(serializer.data, status=200)
+
+        paginator = self.pagination_class()
+        paginated_queryset = paginator.paginate_queryset(orders, request)
+        serializer = self.serializer_class(paginated_queryset, many=True)
+        return paginator.get_paginated_response(serializer.data)
 
 
 class SellerOrderItemsView(APIView):
@@ -234,12 +260,21 @@ class SellerOrderItemsView(APIView):
 
     permission_classes = [IsSeller]
     serializer_class = CheckItemOrderSerializer
+    pagination_class = CustomPagination
 
     @extend_schema(
         summary="Товары продавца",
         description="Возвращает все заказанные товары конкретного продавца.",
         operation_id="seller_order_items_view",
         tags=tags,
+        parameters=[
+            OpenApiParameter(
+                name="page_size",
+                description=f"Количество элементов на странице, которое вы хотите отобразить. По умолчанию используется {settings.REST_FRAMEWORK["PAGE_SIZE"]}",
+                required=False,
+                type=OpenApiTypes.INT,
+            ),
+        ],
     )
     def get(self, request: HttpRequest, *args, **kwargs) -> Response:
         """Обрабатывает GET-запрос для получения элементов заказа, связанных с продавцом."""
@@ -249,5 +284,8 @@ class SellerOrderItemsView(APIView):
         if not order:
             return Response({"message": "Заказа не существует!"}, status=404)
         order_items = OrderItem.objects.filter(order=order, product__seller=seller)
-        serializer = self.serializer_class(order_items, many=True)
-        return Response(serializer.data, status=200)
+
+        paginator = self.pagination_class()
+        paginated_queryset = paginator.paginate_queryset(order_items, request)
+        serializer = self.serializer_class(paginated_queryset, many=True)
+        return paginator.get_paginated_response(serializer.data)

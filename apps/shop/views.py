@@ -3,7 +3,6 @@ from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework import permissions
-from rest_framework import status
 
 
 from apps.shop.models import Category, Product
@@ -21,6 +20,7 @@ from apps.common.permissions import IsAdminOrReadOnly
 from apps.shop.filters import ProductFilter
 from apps.shop.schema_examples import PRODUCT_PARAM_EXAMPLE
 from apps.common.paginations import CustomPagination
+from core import settings
 
 
 tags = ["Shop"]
@@ -34,18 +34,30 @@ class CategoriesView(APIView):
 
     permission_classes = [IsAdminOrReadOnly]
     serializer_class = CategorySerializer
+    pagination_class = CustomPagination
 
     @extend_schema(
         summary="Выбор категорий",
         description="Этот эндопоинт возвращает все категории",
         tags=tags,
+        parameters=[
+            OpenApiParameter(
+                name="page_size",
+                description=f"Количество элементов на странице, которое вы хотите отобразить. По умолчанию используется {settings.REST_FRAMEWORK["PAGE_SIZE"]}",
+                required=False,
+                type=OpenApiTypes.INT,
+            ),
+        ],
     )
     def get(self, request: HttpRequest, *args, **kwargs) -> Response:
         """Обрабатывает GET-запрос для получения списка всех категорий."""
 
         categories = Category.objects.all()
-        serializer = self.serializer_class(categories, many=True)
-        return Response(serializer.data, status=200)
+
+        paginator = self.pagination_class()
+        paginated_queryset = paginator.paginate_queryset(categories, request)
+        serializer = self.serializer_class(paginated_queryset, many=True)
+        return paginator.get_paginated_response(serializer.data)
 
     @extend_schema(
         summary="Создание категории",
@@ -74,12 +86,21 @@ class ProductsByCategoryView(APIView):
 
     permission_classes = [permissions.AllowAny]
     serializer_class = ProductSerializer
+    pagination_class = CustomPagination
 
     @extend_schema(
         operation_id="category_products",
         summary="Выбор товаров по категориям",
         description="Этот эндопоинт возвращает все продукты в определенной категории.",
         tags=tags,
+        parameters=[
+            OpenApiParameter(
+                name="page_size",
+                description=f"Количество элементов на странице, которое вы хотите отобразить. По умолчанию используется {settings.REST_FRAMEWORK["PAGE_SIZE"]}",
+                required=False,
+                type=OpenApiTypes.INT,
+            ),
+        ],
     )
     def get(self, request: HttpRequest, *args, **kwargs) -> Response:
         """Обрабатывает GET-запрос для получения товаров по категории."""
@@ -91,8 +112,11 @@ class ProductsByCategoryView(APIView):
         products = Product.objects.select_related(
             "category", "seller", "seller__user"
         ).filter(category=category)
-        serializer = self.serializer_class(products, many=True)
-        return Response(serializer.data, status=200)
+
+        paginator = self.pagination_class()
+        paginated_queryset = paginator.paginate_queryset(products, request)
+        serializer = self.serializer_class(paginated_queryset, many=True)
+        return paginator.get_paginated_response(serializer.data)
 
 
 class ProductsView(APIView):
@@ -141,11 +165,20 @@ class ProductsBySellerView(APIView):
 
     permission_classes = [permissions.AllowAny]
     serializer_class = ProductSerializer
+    pagination_class = CustomPagination
 
     @extend_schema(
         summary="Товары продавца",
         description="Этот эндопоинт возвращает все товары у определенного продавца.",
         tags=tags,
+        parameters=[
+            OpenApiParameter(
+                name="page_size",
+                description=f"Количество элементов на странице, которое вы хотите отобразить. По умолчанию используется {settings.REST_FRAMEWORK["PAGE_SIZE"]}",
+                required=False,
+                type=OpenApiTypes.INT,
+            ),
+        ],
     )
     def get(self, request: HttpRequest, *args, **kwargs) -> Response:
         """Обрабатывает GET-запрос для получения всех товаров продавца."""
@@ -157,8 +190,11 @@ class ProductsBySellerView(APIView):
         products = Product.objects.select_related(
             "category", "seller", "seller__user"
         ).filter(seller=seller)
-        serializer = self.serializer_class(products, many=True)
-        return Response(serializer.data, status=200)
+
+        paginator = self.pagination_class()
+        paginated_queryset = paginator.paginate_queryset(products, request)
+        serializer = self.serializer_class(paginated_queryset, many=True)
+        return paginator.get_paginated_response(serializer.data)
 
 
 class ProductView(APIView):
@@ -204,11 +240,20 @@ class CartView(APIView):
 
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = OrderItemSerializer
+    pagination_class = CustomPagination
 
     @extend_schema(
         summary="Вывод товаров из корзины",
         description="Возвращает все товары из корзины пользователя.",
         tags=tags,
+        parameters=[
+            OpenApiParameter(
+                name="page_size",
+                description=f"Количество элементов на странице, которое вы хотите отобразить. По умолчанию используется {settings.REST_FRAMEWORK["PAGE_SIZE"]}",
+                required=False,
+                type=OpenApiTypes.INT,
+            ),
+        ],
     )
     def get(self, request: HttpRequest, *args, **kwargs) -> Response:
         """Обрабатывает GET-запрос для получения всех товаров из корзины текущего пользователя.
@@ -220,8 +265,11 @@ class CartView(APIView):
         orderitems = OrderItem.objects.filter(user=user, order=None).select_related(
             "product", "product__seller", "product__seller__user"
         )
-        serializer = self.serializer_class(orderitems, many=True)
-        return Response(serializer.data)
+
+        paginator = self.pagination_class()
+        paginated_queryset = paginator.paginate_queryset(orderitems, request)
+        serializer = self.serializer_class(paginated_queryset, many=True)
+        return paginator.get_paginated_response(serializer.data)
 
     @extend_schema(
         summary="Переместить товар в корзину",
