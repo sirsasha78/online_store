@@ -3,6 +3,7 @@ from autoslug import AutoSlugField
 
 from apps.common.models import BaseModel, IsDeletedModel
 from apps.sellers.models import Seller
+from apps.accounts.models import User
 
 
 class Category(BaseModel):
@@ -80,3 +81,48 @@ class Product(IsDeletedModel):
 
         verbose_name = "Товар"
         verbose_name_plural = "Товары"
+
+
+class Review(IsDeletedModel):
+    """Модель отзыва пользователя на товар.
+    Хранит информацию о рейтинге и текстовом отзыве, оставленном пользователем
+    на конкретный товар. Поддерживает логическое удаление — при удалении запись
+    помечается как удалённая (is_deleted=True), но не удаляется физически из базы данных.
+    Каждый пользователь может оставить только один отзыв на один товар.
+    Отзыв привязан к конкретному товару и автору (пользователю).
+    Атрибуты:
+        RATING_CHOICES (tuple): Кортеж допустимых значений рейтинга — от 1 до 5."""
+
+    RATING_CHOICES = ((1, 1), (2, 2), (3, 3), (4, 4), (5, 5))
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="reviews",
+        verbose_name="Пользователь",
+    )
+    product = models.ForeignKey(
+        Product, on_delete=models.CASCADE, related_name="reviews", verbose_name="Товар"
+    )
+    rating = models.IntegerField(
+        choices=RATING_CHOICES, default=1, verbose_name="Рэйтинг"
+    )
+    text = models.TextField(blank=True, null=True, verbose_name="Текст отзыва")
+
+    def __str__(self) -> str:
+        """Возвращает строковое представление объекта отзыва."""
+
+        return f"Отзыв от {self.user} на {self.product}"
+
+    class Meta:
+        """Метакласс модели Review."""
+
+        verbose_name = "Отзыв"
+        verbose_name_plural = "Отзывы"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "product"],
+                name="unique_review_per_user_and_product",
+                violation_error_message="Вы уже оставили отзыв на этот товар.",
+            )
+        ]
