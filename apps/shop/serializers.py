@@ -2,6 +2,7 @@ from rest_framework import serializers
 from drf_spectacular.utils import extend_schema_field
 
 from apps.profiles.serializers import ShippingAddressSerializer
+from apps.shop.models import Review, Product
 
 
 class CategorySerializer(serializers.Serializer):
@@ -145,3 +146,49 @@ class CheckItemOrderSerializer(serializers.Serializer):
     product = ProductSerializer()
     quantity = serializers.IntegerField()
     total = serializers.FloatField(source="get_total")
+
+
+class ReviewSerializer(serializers.Serializer):
+    """Сериализатор для создания и валидации отзыва пользователя на товар.
+    Поля:
+        product (PrimaryKeyRelatedField): Ссылка на товар, к которому оставляется отзыв.
+            Принимает идентификатор товара (ID) и проверяет его существование в базе данных.
+        rating (IntegerField): Рейтинг, выставленный пользователем. Должен быть в диапазоне от 1 до 5.
+        text (CharField): Текст отзыва. Может быть пустым.
+    Методы:
+        create(validated_data): Создаёт новый отзыв после проверки уникальности.
+        validate_rating(value): Проверяет, что рейтинг находится в допустимом диапазоне.
+    Особенности:
+        - Проверяет, что пользователь не оставил активный (не удалённый) отзыв на указанный товар.
+        - Поддерживает логическое удаление: позволяет оставить новый отзыв, если предыдущий помечен как удалённый.
+    """
+
+    product = serializers.PrimaryKeyRelatedField(queryset=Product.objects.all())
+    rating = serializers.IntegerField()
+    text = serializers.CharField(allow_blank=True, required=False)
+
+    def create(self, validated_data: dict) -> Review:
+        """Создаёт новый отзыв после проверки уникальности для данного пользователя и товара.
+        Проверяет, существует ли уже неудалённый отзыв от текущего пользователя
+        на указанный товар. Если такой отзыв найден — выбрасывается ошибка валидации."""
+
+        user = self.context["request"].user
+        product = validated_data["product"]
+
+        review = Review.objects.filter(
+            user=user, product=product, is_deleted=False
+        ).exists()
+        if review:
+            raise serializers.ValidationError(
+                {"non_field_errors": "Вы уже оставили отзыв на этот товар."}
+            )
+        return Review.objects.create(user=user, **validated_data)
+
+    def validate_rating(self, value: int) -> int:
+        """Валидирует значение рейтинга.
+        Проверяет, что переданное значение рейтинга находится в диапазоне от 1 до 5 включительно.
+        Если значение вне диапазона — выбрасывается ошибка валидации."""
+
+        if not 1 <= value <= 5:
+            raise serializers.ValidationError("Рейтинг должен быть от 1 до 5.")
+        return value

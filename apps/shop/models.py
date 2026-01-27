@@ -119,10 +119,3 @@ class Review(IsDeletedModel):
 
         verbose_name = "Отзыв"
         verbose_name_plural = "Отзывы"
-        constraints = [
-            models.UniqueConstraint(
-                fields=["user", "product"],
-                name="unique_review_per_user_and_product",
-                violation_error_message="Вы уже оставили отзыв на этот товар.",
-            )
-        ]
