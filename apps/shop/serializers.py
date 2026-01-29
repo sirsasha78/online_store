@@ -209,10 +209,9 @@ class ReviewSerializer(serializers.Serializer):
 
     def update(self, instance: Review, validated_data: dict) -> Review:
         """Обновляет существующий отзыв новыми значениями полей.
-        Обновляет поля отзыва (товар, рейтинг, текст), если они переданы в данных.
+        Обновляет поля отзыва (рейтинг, текст), если они переданы в данных.
         Сохраняет изменения в базе данных и возвращает обновлённый объект."""
 
-        instance.product = validated_data.get("product", instance.product)
         instance.rating = validated_data.get("rating", instance.rating)
         instance.text = validated_data.get("text", instance.text)
         instance.save()
@@ -226,3 +225,13 @@ class ReviewSerializer(serializers.Serializer):
         if not 1 <= value <= 5:
             raise serializers.ValidationError("Рейтинг должен быть от 1 до 5.")
         return value
+
+
+class ReviewUpdateSerializer(ReviewSerializer):
+    """Сериализатор для обновления и чтения данных отзыва на товар.
+    Наследуется от `ReviewSerializer`, но переопределяет поле `product`,
+    делая его доступным только для чтения. Используется в представлениях,
+    где необходимо отобразить или обновить существующий отзыв, но запретить
+    изменение привязки к товару."""
+
+    product = serializers.ReadOnlyField(source="product.slug")

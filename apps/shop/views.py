@@ -14,6 +14,7 @@ from apps.shop.serializers import (
     CheckoutSerializer,
     OrderSerializer,
     ReviewSerializer,
+    ReviewUpdateSerializer,
 )
 from apps.sellers.models import Seller
 from apps.profiles.models import OrderItem, ShippingAddress, Order
@@ -471,7 +472,7 @@ class ReviewDetailView(APIView):
         permission_classes (list): Список классов разрешений. Доступ разрешён только владельцу
                                    или персоналу для операций записи."""
 
-    serializer_class = ReviewSerializer
+    serializer_class = ReviewUpdateSerializer
     permission_classes = [IsOwnerOrReadOnly]
 
     def get_object(self, pk: str) -> Review | None:
