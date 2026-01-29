@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from drf_spectacular.utils import extend_schema_field
+from django.db.models import Avg
 
 from apps.profiles.serializers import ShippingAddressSerializer
 from apps.shop.models import Review, Product
@@ -30,9 +31,14 @@ class SellerShopSerializer(serializers.Serializer):
 class ProductSerializer(serializers.Serializer):
     """Сериализатор для представления данных продукта.
     Преобразует объекты товаров в JSON-формат и обратно. Включает основные
-    атрибуты товара, такие как название, описание, цена, категория, изображения
-    и информация о продавце. Используется для отображения детальной и
-    краткой информации о товаре в API."""
+    атрибуты товара: название, описание, цены, категорию, изображения и информацию
+    о продавце. Также вычисляет средний рейтинг товара на основе активных отзывов.
+    Используется для отображения детальной и краткой информации о товаре
+    в API-эндпоинтах, таких как список товаров или страница отдельного товара.
+    Методы:
+        get_average_rating(obj): Вычисляет и возвращает средний рейтинг товара
+            на основе активных (не удалённых) отзывов. Если отзывов нет, возвращает None.
+    """
 
     seller = SellerShopSerializer()
     name = serializers.CharField(max_length=255)
@@ -42,9 +48,20 @@ class ProductSerializer(serializers.Serializer):
     price_current = serializers.DecimalField(max_digits=10, decimal_places=2)
     category = CategorySerializer()
     in_stock = serializers.IntegerField()
+    average_rating = serializers.SerializerMethodField()
     image1 = serializers.ImageField()
     image2 = serializers.ImageField(required=False)
     image3 = serializers.ImageField(required=False)
+
+    def get_average_rating(self, obj: Product) -> float | None:
+        """Вычисляет средний рейтинг товара на основе активных отзывов.
+        Метод фильтрует отзывы, связанные с переданным товаром, исключает
+        удалённые отзывы и рассчитывает среднее значение по полю `rating`."""
+
+        avg = Review.objects.filter(product=obj, is_deleted=False).aggregate(
+            Avg("rating")
+        )["rating__avg"]
+        return round(avg, 1) if avg is not None else None
 
 
 class CreateProductSerializer(serializers.Serializer):
@@ -166,7 +183,7 @@ class ReviewSerializer(serializers.Serializer):
         - Поддерживает логическое удаление: позволяет оставить новый отзыв, если предыдущий помечен как удалённый.
     """
 
-    id = serializers.UUIDField()
+    id = serializers.UUIDField(read_only=True)
     product = serializers.SlugRelatedField(
         slug_field="slug", queryset=Product.objects.all()
     )
