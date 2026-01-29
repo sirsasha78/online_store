@@ -379,19 +379,35 @@ class CheckoutView(APIView):
 
 
 class ProductReviewsView(APIView):
-    """Представление для управления отзывами на товары.
-    Поддерживает:
-    - Получение всех отзывов на товар по его slug.
+    """Представление для получения пагинированного списка отзывов на товар по его slug.
+    Данный класс обрабатывает GET-запросы для отображения всех активных отзывов,
+    связанных с определённым товаром. Поддерживает пагинацию результатов,
+    что позволяет эффективно отображать большое количество отзывов без перегрузки сервера.
     Атрибуты:
-        serializer_class (type): Класс сериализатора, используемый для валидации
-                                 и сериализации данных отзывов."""
+        serializer_class (type): Класс сериализатора, используемый для преобразования
+            объектов отзывов в JSON-формат.
+        permission_classes (list): Список классов разрешений. Доступ к представлению
+            разрешён всем пользователям, включая неаутентифицированных.
+        pagination_class (type): Класс пагинации, используемый для разбиения списка
+            отзывов на страницы. Позволяет клиенту управлять количеством элементов
+            на странице через параметр `page_size`."""
 
     serializer_class = ReviewSerializer
+    permission_classes = [permissions.AllowAny]
+    pagination_class = CustomPagination
 
     @extend_schema(
         summary="Получение отзывов",
         description="Этот эндопоинт возвращает все отзывы",
         tags=tags,
+        parameters=[
+            OpenApiParameter(
+                name="page_size",
+                description=f"Количество элементов на странице, которое вы хотите отобразить. По умолчанию используется {settings.REST_FRAMEWORK["PAGE_SIZE"]}",
+                required=False,
+                type=OpenApiTypes.INT,
+            ),
+        ],
     )
     def get(self, request: Request, *args, **kwargs) -> Response:
         """Обрабатывает GET-запрос для получения всех отзывов на товар.
@@ -404,8 +420,10 @@ class ProductReviewsView(APIView):
             return Response({"message": "Товар не существует"}, status=404)
 
         reviews = Review.objects.filter(product=product, is_deleted=False)
-        serializer = self.serializer_class(reviews, many=True)
-        return Response(serializer.data, status=200)
+        paginator = self.pagination_class()
+        paginated_queryset = paginator.paginate_queryset(reviews, request)
+        serializer = self.serializer_class(paginated_queryset, many=True)
+        return paginator.get_paginated_response(serializer.data)
 
 
 class ReviewCreateView(APIView):
@@ -419,6 +437,7 @@ class ReviewCreateView(APIView):
                                  и десериализации входных данных при создании отзыва."""
 
     serializer_class = ReviewSerializer
+    permission_classes = [permissions.IsAuthenticated]
 
     @extend_schema(
         summary="Создание отзыва",
