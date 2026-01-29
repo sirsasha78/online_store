@@ -468,7 +468,7 @@ class ReviewDetailView(APIView):
     При удалении используется мягкое удаление — запись помечается как удалённая,
     но остаётся в базе данных.
     Атрибуты:
-        serializer_class (ReviewSerializer): Сериализатор для преобразования данных отзыва.
+        serializer_class (ReviewUpdateSerializer): Сериализатор для преобразования данных отзыва.
         permission_classes (list): Список классов разрешений. Доступ разрешён только владельцу
                                    или персоналу для операций записи."""
 
@@ -515,7 +515,7 @@ class ReviewDetailView(APIView):
         if not review:
             return Response({"message": "Отзыв не найден"}, status=404)
 
-        serializer = self.serializer_class(review, data=request.data, partial=True)
+        serializer = self.serializer_class(review, data=request.data)
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data, status=200)
