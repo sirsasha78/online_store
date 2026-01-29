@@ -1,11 +1,11 @@
-from django.http import HttpRequest
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework import permissions
+from rest_framework.request import Request
 
 
-from apps.shop.models import Category, Product
+from apps.shop.models import Category, Product, Review
 from apps.shop.serializers import (
     CategorySerializer,
     ProductSerializer,
@@ -13,10 +13,11 @@ from apps.shop.serializers import (
     ToggleCartItemSerializer,
     CheckoutSerializer,
     OrderSerializer,
+    ReviewSerializer,
 )
 from apps.sellers.models import Seller
 from apps.profiles.models import OrderItem, ShippingAddress, Order
-from apps.common.permissions import IsAdminOrReadOnly
+from apps.common.permissions import IsAdminOrReadOnly, IsOwnerOrReadOnly
 from apps.shop.filters import ProductFilter
 from apps.shop.schema_examples import PRODUCT_PARAM_EXAMPLE
 from apps.common.paginations import CustomPagination
@@ -49,7 +50,7 @@ class CategoriesView(APIView):
             ),
         ],
     )
-    def get(self, request: HttpRequest, *args, **kwargs) -> Response:
+    def get(self, request: Request, *args, **kwargs) -> Response:
         """Обрабатывает GET-запрос для получения списка всех категорий."""
 
         categories = Category.objects.all()
@@ -64,7 +65,7 @@ class CategoriesView(APIView):
         description="Эндопоинт для создание категорий",
         tags=tags,
     )
-    def post(self, request: HttpRequest, *args, **kwargs) -> Response:
+    def post(self, request: Request, *args, **kwargs) -> Response:
         """Обрабатывает POST-запрос для создания новой категории.
         Принимает данные от клиента, валидирует их через CategorySerializer.
         При успешной валидации создаёт новую категорию в базе данных."""
@@ -102,7 +103,7 @@ class ProductsByCategoryView(APIView):
             ),
         ],
     )
-    def get(self, request: HttpRequest, *args, **kwargs) -> Response:
+    def get(self, request: Request, *args, **kwargs) -> Response:
         """Обрабатывает GET-запрос для получения товаров по категории."""
 
         category = Category.objects.get_or_none(slug=kwargs["slug"])
@@ -139,7 +140,7 @@ class ProductsView(APIView):
         tags=tags,
         parameters=PRODUCT_PARAM_EXAMPLE,
     )
-    def get(self, request: HttpRequest, *args, **kwargs) -> Response:
+    def get(self, request: Request, *args, **kwargs) -> Response:
         """Обрабатывает HTTP GET-запрос для получения списка продуктов с фильтрацией."""
 
         products = Product.objects.select_related(
@@ -180,7 +181,7 @@ class ProductsBySellerView(APIView):
             ),
         ],
     )
-    def get(self, request: HttpRequest, *args, **kwargs) -> Response:
+    def get(self, request: Request, *args, **kwargs) -> Response:
         """Обрабатывает GET-запрос для получения всех товаров продавца."""
 
         seller = Seller.objects.get_or_none(slug=kwargs["slug"])
@@ -218,7 +219,7 @@ class ProductView(APIView):
         description="Этот эндопоинт возвращает сведения о продукте с помощью slug.",
         tags=tags,
     )
-    def get(self, request: HttpRequest, *args, **kwargs) -> Response:
+    def get(self, request: Request, *args, **kwargs) -> Response:
         """Обрабатывает GET-запрос для получения детальной информации о продукте."""
 
         product = self.get_object(kwargs["slug"])
@@ -255,7 +256,7 @@ class CartView(APIView):
             ),
         ],
     )
-    def get(self, request: HttpRequest, *args, **kwargs) -> Response:
+    def get(self, request: Request, *args, **kwargs) -> Response:
         """Обрабатывает GET-запрос для получения всех товаров из корзины текущего пользователя.
         Выполняет выборку объектов `OrderItem`, связанных с текущим пользователем и не привязанных к заказу.
         Использует `select_related` для оптимизации запросов к связанным объектам: продукт, продавец, пользователь продавца.
@@ -277,7 +278,7 @@ class CartView(APIView):
         request=ToggleCartItemSerializer,
         tags=tags,
     )
-    def post(self, request: HttpRequest, *args, **kwargs) -> Response:
+    def post(self, request: Request, *args, **kwargs) -> Response:
         """Обрабатывает POST-запрос для добавления, обновления или удаления товара в корзине.
         Принимает слаг продукта и количество. На основе этих данных:
         - Если товара ещё нет — создаётся новый `OrderItem`.
@@ -333,7 +334,7 @@ class CheckoutView(APIView):
         request=CheckoutSerializer,
         tags=tags,
     )
-    def post(self, request: HttpRequest, *args, **kwargs) -> Response:
+    def post(self, request: Request, *args, **kwargs) -> Response:
         """Обрабатывает POST-запрос для создания заказа из корзины пользователя."""
 
         user = request.user
@@ -375,3 +376,145 @@ class CheckoutView(APIView):
             },
             status=201,
         )
+
+
+class ProductReviewsView(APIView):
+    """Представление для управления отзывами на товары.
+    Поддерживает:
+    - Получение всех отзывов на товар по его slug.
+    Атрибуты:
+        serializer_class (type): Класс сериализатора, используемый для валидации
+                                 и сериализации данных отзывов."""
+
+    serializer_class = ReviewSerializer
+
+    @extend_schema(
+        summary="Получение отзывов",
+        description="Этот эндопоинт возвращает все отзывы",
+        tags=tags,
+    )
+    def get(self, request: Request, *args, **kwargs) -> Response:
+        """Обрабатывает GET-запрос для получения всех отзывов на товар.
+        Получает товар по значению `slug` из URL-параметров. Если товар не найден,
+        возвращает сообщение об ошибке. В противном случае возвращает список
+        всех отзывов, связанных с этим товаром."""
+
+        product = Product.objects.get_or_none(slug=kwargs["slug"])
+        if not product:
+            return Response({"message": "Товар не существует"}, status=404)
+
+        reviews = Review.objects.filter(product=product, is_deleted=False)
+        serializer = self.serializer_class(reviews, many=True)
+        return Response(serializer.data, status=200)
+
+
+class ReviewCreateView(APIView):
+    """Представление для создания нового отзыва на товар.
+    Обрабатывает POST-запросы на создание отзыва с проверкой прав доступа
+    и валидацией данных. Использует указанный сериализатор для преобразования
+    входных данных и сохранения отзыва в базу данных. Поддерживает автоматическую
+    документацию через drf-spectacular.
+    Атрибуты:
+        serializer_class (type): Класс сериализатора, используемый для валидации
+                                 и десериализации входных данных при создании отзыва."""
+
+    serializer_class = ReviewSerializer
+
+    @extend_schema(
+        summary="Создание отзыва",
+        description="Эндопоинт для создание отзывов",
+        tags=tags,
+    )
+    def post(self, request: Request, *args, **kwargs) -> Response:
+        """Обрабатывает POST-запрос для создания нового отзыва на товар.
+        Выполняет валидацию входных данных с помощью сериализатора.
+        Если данные валидны, создаёт новый отзыв и возвращает его данные.
+        В случае ошибки валидации возвращает детали ошибок."""
+
+        serializer = self.serializer_class(
+            data=request.data, context={"request": request}
+        )
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=201)
+        else:
+            return Response(serializer.errors, status=400)
+
+
+class ReviewDetailView(APIView):
+    """Представление для детального взаимодействия с отзывом.
+    Поддерживает операции получения, полного обновления и удаления отзыва.
+    Доступ к изменению и удалению имеет только владелец отзыва или персонал (is_staff).
+    При удалении используется мягкое удаление — запись помечается как удалённая,
+    но остаётся в базе данных.
+    Атрибуты:
+        serializer_class (ReviewSerializer): Сериализатор для преобразования данных отзыва.
+        permission_classes (list): Список классов разрешений. Доступ разрешён только владельцу
+                                   или персоналу для операций записи."""
+
+    serializer_class = ReviewSerializer
+    permission_classes = [IsOwnerOrReadOnly]
+
+    def get_object(self, pk: str) -> Review | None:
+        """Возвращает объект отзыва по его идентификатору.
+        Метод использует `get_or_none` для безопасного получения объекта без выброса исключения.
+        Если объект не найден, возвращается None."""
+
+        review = Review.objects.get_or_none(id=pk, is_deleted=False)
+        self.check_object_permissions(self.request, review)
+        return review
+
+    @extend_schema(
+        summary="Получение отзыва",
+        description="Возвращает данные одного отзыва.",
+        tags=tags,
+    )
+    def get(self, request: Request, *args, **kwargs) -> Response:
+        """Обрабатывает GET-запрос для получения данных конкретного отзыва.
+        Если отзыв с указанным ID не найден, возвращается ошибка 404.
+        В случае успеха — данные отзыва сериализуются и возвращаются с кодом 200."""
+
+        review = self.get_object(kwargs["pk"])
+        if not review:
+            return Response({"message": "Отзыв не найден"}, status=404)
+        serializer = self.serializer_class(review)
+        return Response(serializer.data, status=200)
+
+    @extend_schema(
+        summary="Изменение отзыва",
+        description="Позволяет владельцу изменить текст или рейтинг отзыва.",
+        tags=tags,
+    )
+    def put(self, request: Request, *args, **kwargs) -> Response:
+        """Обрабатывает PUT-запрос для полного обновления отзыва.
+        Проверяет права доступа через `permission_classes`. Если данные валидны,
+        отзыв обновляется. При отсутствии отзыва или невалидных данных возвращается
+        соответствующий статус-код."""
+
+        review = self.get_object(kwargs["pk"])
+        if not review:
+            return Response({"message": "Отзыв не найден"}, status=404)
+
+        serializer = self.serializer_class(review, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=200)
+        return Response(serializer.errors, status=400)
+
+    @extend_schema(
+        summary="Удаление отзыва",
+        description="Помечает отзыв как удалённый (мягкое удаление).",
+        tags=tags,
+    )
+    def delete(self, request: Request, *args, **kwargs) -> Response:
+        """Обрабатывает DELETE-запрос для удаления отзыва.
+        Реализует мягкое удаление: объект не удаляется физически, а помечается
+        как удалённый через метод `delete()` модели. После успешного удаления
+        возвращается сообщение и статус 202."""
+
+        review = self.get_object(kwargs["pk"])
+        if not review:
+            return Response({"message": "Отзыв не найден"}, status=404)
+
+        review.delete()
+        return Response({"message": "Отзыв успешно удален"}, status=204)

@@ -1,8 +1,8 @@
-from django.http import HttpRequest
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework import permissions
+from rest_framework.request import Request
 
 from apps.sellers.models import Seller
 from apps.sellers.serializers import SellerSerializer
@@ -38,7 +38,7 @@ class SellersView(APIView):
         description="Эндопоинт позволяющий создавать или обновлять профиль продавца",
         tags=tags,
     )
-    def post(self, request: HttpRequest, *args, **kwargs) -> Response:
+    def post(self, request: Request, *args, **kwargs) -> Response:
         """Обрабатывает POST-запрос для создания или обновления профиля продавца."""
 
         user = request.user
@@ -76,7 +76,7 @@ class SellerProductsView(APIView):
             ),
         ],
     )
-    def get(self, request: HttpRequest, *args, **kwargs) -> Response:
+    def get(self, request: Request, *args, **kwargs) -> Response:
         """Обрабатывает GET-запрос для получения списка товаров продавца.
         Проверяет, является ли текущий пользователь подтверждённым продавцом.
         Если нет — возвращает статус 403.
@@ -103,7 +103,7 @@ class SellerProductsView(APIView):
         request=CreateProductSerializer,
         responses=ProductSerializer,
     )
-    def post(self, request: HttpRequest, *args, **kwargs) -> Response:
+    def post(self, request: Request, *args, **kwargs) -> Response:
         """Обрабатывает POST-запрос для создания нового товара продавцом.
         Проверяет:
         - Является ли пользователь подтверждённым продавцом.
@@ -153,7 +153,7 @@ class SellerProductView(APIView):
         description="Этот эндпоинт позволяет продавцу обновит свой продукт.",
         tags=tags,
     )
-    def put(self, request: HttpRequest, *args, **kwargs) -> Response:
+    def put(self, request: Request, *args, **kwargs) -> Response:
         """Обрабатывает PUT-запрос для полного обновления продукта.
         При изменении цены, предыдущее значение сохраняется в `price_old`."""
 
@@ -188,7 +188,7 @@ class SellerProductView(APIView):
         description="Этот эндпоинт позволяет продавцу удалить свой продукт.",
         tags=tags,
     )
-    def delete(self, request: HttpRequest, *args, **kwargs) -> Response:
+    def delete(self, request: Request, *args, **kwargs) -> Response:
         """Обрабатывает DELETE-запрос для удаления продукта.
         Проверяет:
         - Существование продукта по slug.
@@ -235,7 +235,7 @@ class SellerOrdersView(APIView):
             ),
         ],
     )
-    def get(self, request: HttpRequest, *args, **kwargs) -> Response:
+    def get(self, request: Request, *args, **kwargs) -> Response:
         """Обрабатывает GET-запрос для получения списка заказов продавца."""
 
         seller = request.user.seller
@@ -276,7 +276,7 @@ class SellerOrderItemsView(APIView):
             ),
         ],
     )
-    def get(self, request: HttpRequest, *args, **kwargs) -> Response:
+    def get(self, request: Request, *args, **kwargs) -> Response:
         """Обрабатывает GET-запрос для получения элементов заказа, связанных с продавцом."""
 
         seller = request.user.seller

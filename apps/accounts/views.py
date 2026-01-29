@@ -1,6 +1,6 @@
-from django.http import HttpRequest
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.request import Request
 from rest_framework_simplejwt.views import TokenObtainPairView
 
 from apps.accounts.serializers import CreateUserSerializer, MyTokenObtainPairSerializer
@@ -14,7 +14,7 @@ class RegisterAPIView(APIView):
 
     serializer_class = CreateUserSerializer
 
-    def post(self, request: HttpRequest) -> Response:
+    def post(self, request: Request, *args, **kwargs) -> Response:
         """Обрабатывает POST-запрос для регистрации нового пользователя."""
 
         serializer = self.serializer_class(data=request.data)

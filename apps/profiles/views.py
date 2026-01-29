@@ -1,8 +1,8 @@
 from uuid import UUID
-from django.http import HttpRequest
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.exceptions import NotFound, ValidationError
+from rest_framework.request import Request
 from drf_spectacular.utils import extend_schema
 
 from apps.common.utils import set_dict_attr
@@ -30,7 +30,7 @@ class ProfileView(APIView):
         description="""Эта конечная точка позволяет пользователю получить доступ к своему профилю.""",
         tags=tags,
     )
-    def get(self, request: HttpRequest, *args, **kwargs) -> Response:
+    def get(self, request: Request, *args, **kwargs) -> Response:
         """Возвращает данные профиля текущего пользователя."""
 
         user = request.user
@@ -43,7 +43,7 @@ class ProfileView(APIView):
         tags=tags,
         request={"multipart/form-data": serializer_class},
     )
-    def put(self, request: HttpRequest, *args, **kwargs) -> Response:
+    def put(self, request: Request, *args, **kwargs) -> Response:
         """Полностью обновляет данные профиля пользователя.
         Принимает данные из тела запроса, валидирует их с помощью
         ProfileSerializer, и при успешной валидации обновляет
@@ -63,7 +63,7 @@ class ProfileView(APIView):
         description="""Эта конечная точка позволяет пользователю деактивировать свою учетную запись.""",
         tags=tags,
     )
-    def delete(self, request: HttpRequest, *args, **kwargs) -> Response:
+    def delete(self, request: Request, *args, **kwargs) -> Response:
         """Деактивирует учётную запись текущего пользователя."""
 
         user = request.user
@@ -86,7 +86,7 @@ class ShippingAddressesView(APIView):
         description="""Эта конечная точка возвращает все адреса доставки, связанные с пользователем.""",
         tags=tags,
     )
-    def get(self, request: HttpRequest, *args, **kwargs) -> Response:
+    def get(self, request: Request, *args, **kwargs) -> Response:
         """Возвращает список всех адресов доставки, привязанных к текущему пользователю."""
 
         user = request.user
@@ -99,7 +99,7 @@ class ShippingAddressesView(APIView):
         description="""Эта конечная точка позволяет пользователю создать адрес доставки.""",
         tags=tags,
     )
-    def post(self, request: HttpRequest, *args, **kwargs) -> Response:
+    def post(self, request: Request, *args, **kwargs) -> Response:
         """Создаёт новый адрес доставки для текущего пользователя."""
 
         user = request.user
@@ -147,7 +147,7 @@ class ShippingAddressViewID(APIView):
         description="""Эта конечная точка возвращает один адрес доставки, связанный с пользователем.""",
         tags=tags,
     )
-    def get(self, request: HttpRequest, *args, **kwargs) -> Response:
+    def get(self, request: Request, *args, **kwargs) -> Response:
         """Обрабатывает GET-запрос для получения данных одного адреса доставки."""
 
         user = request.user
@@ -160,7 +160,7 @@ class ShippingAddressViewID(APIView):
         description="""Эта конечная точка позволяет пользователю обновить свой адрес доставки.""",
         tags=tags,
     )
-    def put(self, request: HttpRequest, *args, **kwargs) -> Response:
+    def put(self, request: Request, *args, **kwargs) -> Response:
         """Обрабатывает PUT-запрос для полного обновления адреса доставки."""
 
         user = request.user
@@ -178,7 +178,7 @@ class ShippingAddressViewID(APIView):
         description="""Эта конечная точка позволяет пользователю удалить свой адрес доставки.""",
         tags=tags,
     )
-    def delete(self, request: HttpRequest, *args, **kwargs) -> Response:
+    def delete(self, request: Request, *args, **kwargs) -> Response:
         """Обрабатывает DELETE-запрос для удаления адреса доставки."""
 
         user = request.user
@@ -207,7 +207,7 @@ class OrdersView(APIView):
         operation_id="orders_view",
         tags=tags,
     )
-    def get(self, request: HttpRequest, *args, **kwargs) -> Response:
+    def get(self, request: Request, *args, **kwargs) -> Response:
         """Обрабатывает HTTP GET-запрос для получения списка всех заказов пользователя."""
 
         user = request.user
@@ -237,7 +237,7 @@ class OrderItemsView(APIView):
         operation_id="order_items_view",
         tags=tags,
     )
-    def get(self, request: HttpRequest, *args, **kwargs) -> Response:
+    def get(self, request: Request, *args, **kwargs) -> Response:
         """Обрабатывает GET-запрос для получения всех товаров, входящих в заказ."""
 
         order = Order.objects.get_or_none(tx_ref=kwargs["tx_ref"])

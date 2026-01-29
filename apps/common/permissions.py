@@ -1,6 +1,6 @@
-from django.http import HttpRequest
 from rest_framework import permissions
 from rest_framework.views import View
+from rest_framework.request import Request
 
 from typing import Any
 
@@ -15,14 +15,14 @@ class IsOwner(permissions.BasePermission):
     - Пользователь мог взаимодействовать только со своими объектами.
     - Администраторы (staff) имели полный доступ к любым объектам."""
 
-    def has_permission(self, request: HttpRequest, view: View) -> bool:
+    def has_permission(self, request: Request, view: View) -> bool:
         """Проверяет, имеет ли пользователь право на выполнение запроса."""
 
         if request.user.is_authenticated:
             return True
         return False
 
-    def has_object_permission(self, request: HttpRequest, view: View, obj: Any) -> bool:
+    def has_object_permission(self, request: Request, view: View, obj: Any) -> bool:
         """Проверяет, имеет ли пользователь право на взаимодействие с конкретным объектом.
         Метод вызывается при попытке доступа к конкретному объекту (например, при редактировании или удалении).
         """
@@ -37,7 +37,7 @@ class IsSeller(permissions.BasePermission):
     - На уровне объекта (has_object_permission): пользователь может взаимодействовать только с объектами,
       принадлежащими его профилю продавца, либо быть сотрудником (staff)."""
 
-    def has_permission(self, request: HttpRequest, view: View) -> bool:
+    def has_permission(self, request: Request, view: View) -> bool:
         """Проверяет, имеет ли пользователь право на выполнение запроса."""
 
         if (
@@ -48,7 +48,7 @@ class IsSeller(permissions.BasePermission):
             return True
         return False
 
-    def has_object_permission(self, request: HttpRequest, view: View, obj: Any) -> bool:
+    def has_object_permission(self, request: Request, view: View, obj: Any) -> bool:
         """Проверяет, имеет ли пользователь право на взаимодействие с конкретным объектом."""
 
         return obj.seller == request.user.seller or request.user.is_staff
@@ -64,9 +64,24 @@ class IsAdminOrReadOnly(permissions.BasePermission):
     Применяется для представлений, где данные должны быть защищены
     от изменений, но доступны для просмотра всем."""
 
-    def has_permission(self, request: HttpRequest, view: View) -> bool:
+    def has_permission(self, request: Request, view: View) -> bool:
         """Проверяет, имеет ли пользователь право на выполнение запроса."""
 
         if request.method in permissions.SAFE_METHODS:
             return True
         return bool(request.user and request.user.is_staff)
+
+
+class IsOwnerOrReadOnly(permissions.BasePermission):
+    """Пользовательское разрешение, позволяющее редактировать или удалять объект только его владельцу.
+    Разрешает чтение (GET, HEAD, OPTIONS) всем пользователям.
+    Запись (PUT, PATCH, DELETE) разрешена только владельцу объекта или персоналу (staff).
+    Используется в представлениях, где важна защита данных от изменения посторонними пользователями.
+    """
+
+    def has_object_permission(self, request: Request, view: View, obj: Any) -> bool:
+        """Проверяет, имеет ли пользователь право на выполнение операции над объектом."""
+
+        if request.method in permissions.SAFE_METHODS:
+            return True
+        return obj.user == request.user or request.user.is_staff

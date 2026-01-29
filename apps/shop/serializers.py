@@ -151,19 +151,25 @@ class CheckItemOrderSerializer(serializers.Serializer):
 class ReviewSerializer(serializers.Serializer):
     """Сериализатор для создания и валидации отзыва пользователя на товар.
     Поля:
-        product (PrimaryKeyRelatedField): Ссылка на товар, к которому оставляется отзыв.
-            Принимает идентификатор товара (ID) и проверяет его существование в базе данных.
+        id (UUIDField): Уникальный идентификатор отзыва. Предоставляется только для чтения.
+        product (SlugRelatedField): Ссылка на товар, используя поле `slug` в качестве идентификатора.
+            Принимает значение `slug` товара и проверяет его существование в базе данных.
         rating (IntegerField): Рейтинг, выставленный пользователем. Должен быть в диапазоне от 1 до 5.
         text (CharField): Текст отзыва. Может быть пустым.
     Методы:
         create(validated_data): Создаёт новый отзыв после проверки уникальности.
+        update(instance, validated_data): Обновляет существующий отзыв с учётом переданных данных.
+            Сохраняет изменения в базе данных и возвращает обновлённый объект.
         validate_rating(value): Проверяет, что рейтинг находится в допустимом диапазоне.
     Особенности:
         - Проверяет, что пользователь не оставил активный (не удалённый) отзыв на указанный товар.
         - Поддерживает логическое удаление: позволяет оставить новый отзыв, если предыдущий помечен как удалённый.
     """
 
-    product = serializers.PrimaryKeyRelatedField(queryset=Product.objects.all())
+    id = serializers.UUIDField()
+    product = serializers.SlugRelatedField(
+        slug_field="slug", queryset=Product.objects.all()
+    )
     rating = serializers.IntegerField()
     text = serializers.CharField(allow_blank=True, required=False)
 
@@ -183,6 +189,17 @@ class ReviewSerializer(serializers.Serializer):
                 {"non_field_errors": "Вы уже оставили отзыв на этот товар."}
             )
         return Review.objects.create(user=user, **validated_data)
+
+    def update(self, instance: Review, validated_data: dict) -> Review:
+        """Обновляет существующий отзыв новыми значениями полей.
+        Обновляет поля отзыва (товар, рейтинг, текст), если они переданы в данных.
+        Сохраняет изменения в базе данных и возвращает обновлённый объект."""
+
+        instance.product = validated_data.get("product", instance.product)
+        instance.rating = validated_data.get("rating", instance.rating)
+        instance.text = validated_data.get("text", instance.text)
+        instance.save()
+        return instance
 
     def validate_rating(self, value: int) -> int:
         """Валидирует значение рейтинга.
