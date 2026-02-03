@@ -439,6 +439,7 @@ class ReviewCreateView(APIView):
 
     serializer_class = ReviewSerializer
     permission_classes = [permissions.IsAuthenticated]
+    throttle_scope = "review_create"
 
     @extend_schema(
         summary="Создание отзыва",

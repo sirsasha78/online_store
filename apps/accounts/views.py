@@ -13,6 +13,7 @@ class RegisterAPIView(APIView):
     при успешной валидации."""
 
     serializer_class = CreateUserSerializer
+    throttle_scope = "register"
 
     def post(self, request: Request, *args, **kwargs) -> Response:
         """Обрабатывает POST-запрос для регистрации нового пользователя."""
